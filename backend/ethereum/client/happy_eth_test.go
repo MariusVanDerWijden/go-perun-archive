@@ -19,6 +19,7 @@ import (
 	"perun.network/go-perun/backend/ethereum/channel/test"
 	"perun.network/go-perun/backend/ethereum/wallet"
 	ethwallettest "perun.network/go-perun/backend/ethereum/wallet/test"
+	perunchannel "perun.network/go-perun/channel"
 	clienttest "perun.network/go-perun/client/test"
 	"perun.network/go-perun/log"
 	"perun.network/go-perun/peer"
@@ -59,27 +60,27 @@ func TestHappyAliceBobETH(t *testing.T) {
 	funderAlice := channel.NewETHFunder(cbAlice, assetAddr)
 	funderBob := channel.NewETHFunder(cbBob, assetAddr)
 	// Create the settlers
-	settlerAlice := channel.NewETHSettler(cbAlice, adjAddr)
-	settlerBob := channel.NewETHSettler(cbBob, adjAddr)
+	adjudicatorAlice := &DummyAdjudicator{t}
+	adjudicatorBob := &DummyAdjudicator{t}
 
 	setupAlice := clienttest.RoleSetup{
-		Name:     "Alice",
-		Identity: aliceAcc,
-		Dialer:   hub.NewDialer(),
-		Listener: hub.NewListener(aliceAcc.Address()),
-		Funder:   funderAlice,
-		Settler:  settlerAlice,
-		Timeout:  defaultTimeout,
+		Name:        "Alice",
+		Identity:    aliceAcc,
+		Dialer:      hub.NewDialer(),
+		Listener:    hub.NewListener(aliceAcc.Address()),
+		Funder:      funderAlice,
+		Adjudicator: adjudicatorAlice,
+		Timeout:     defaultTimeout,
 	}
 
 	setupBob := clienttest.RoleSetup{
-		Name:     "Bob",
-		Identity: bobAcc,
-		Dialer:   hub.NewDialer(),
-		Listener: hub.NewListener(bobAcc.Address()),
-		Funder:   funderBob,
-		Settler:  settlerBob,
-		Timeout:  defaultTimeout,
+		Name:        "Bob",
+		Identity:    bobAcc,
+		Dialer:      hub.NewDialer(),
+		Listener:    hub.NewListener(bobAcc.Address()),
+		Funder:      funderBob,
+		Adjudicator: adjudicatorBob,
+		Timeout:     defaultTimeout,
 	}
 
 	execConfig := clienttest.ExecConfig{
@@ -114,4 +115,21 @@ func TestHappyAliceBobETH(t *testing.T) {
 
 	wg.Wait()
 	log.Info("Happy test done")
+}
+
+// DummyAdjudicator is a temporary dummy implementation of the Adjudicator interface until the Ethereum Adjudicator is merged
+type DummyAdjudicator struct {
+	t *testing.T
+}
+
+func (d *DummyAdjudicator) Register(ctx context.Context, req perunchannel.AdjudicatorReq) (*perunchannel.Registered, error) {
+	return &perunchannel.Registered{ID: req.Params.ID(), Timeout: time.Now(), Version: req.Tx.Version}, nil
+}
+
+func (d *DummyAdjudicator) Withdraw(context.Context, perunchannel.AdjudicatorReq) error {
+	return nil
+}
+
+func (d *DummyAdjudicator) SubscribeRegistered(context.Context, *perunchannel.Params) (perunchannel.RegisteredSubscription, error) {
+	return nil, nil
 }
